@@ -155,6 +155,7 @@ testing &lt;- test[-cv_index,]</code></pre>
 training_scale &lt;- predict(scale_obj, training[,-53])
 testing_scale &lt;- predict(scale_obj, testing[,-53])
 cv_scale &lt;- predict(scale_obj, cv[,-53])
+test_data_scale &lt;- predict(scale_obj, test_data)
 ################Attaching the outcome to datasets
 training_scale$classe &lt;- training$classe
 testing_scale$classe &lt;- testing$classe
@@ -435,8 +436,8 @@ confusionMatrix(rf_test_predict, testing_scale$classe)</code></pre>
 <div id="predicting-the-class" class="section level2">
 <h2>Predicting the class</h2>
 <p>Now we apply our classifier to the the data without the label to predict what label each data belongs.</p>
-<pre class="r"><code>predict(fit_rf, test_data)</code></pre>
-<pre><code>##  [1] E B B A A E E A B E B B B B E E E B E E
+<pre class="r"><code>predict(fit_rf, test_data_scale)</code></pre>
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
 ## Levels: A B C D E</code></pre>
 </div>
 </div>

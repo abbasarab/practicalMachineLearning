@@ -59,6 +59,7 @@ scale_obj <- preProcess(training[,-53], method = c("center", "scale"))
 training_scale <- predict(scale_obj, training[,-53])
 testing_scale <- predict(scale_obj, testing[,-53])
 cv_scale <- predict(scale_obj, cv[,-53])
+test_data_scale <- predict(scale_obj, test_data)
 ################Attaching the outcome to datasets
 training_scale$classe <- training$classe
 testing_scale$classe <- testing$classe
@@ -126,5 +127,5 @@ you see that test data accuracy approximately is about 99%.
 
 Now we apply our classifier to the the data without the label to predict what label each data belongs.
 ```{r}
-predict(fit_rf, test_data)
+predict(fit_rf, test_data_scale)
 ```
