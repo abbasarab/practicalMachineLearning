@@ -1,0 +1,130 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Abbas Arab"
+date: "February 1, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+library(rpart.plot)
+library(rpart)
+library(caret)
+library(ipred)
+library(e1071)
+library(dplyr)
+library(randomForest)
+```
+
+## Abstract
+
+As the final project of **Practical Machine Learning** course, we are given datasets about the physical activity of subjects collected via wearable devices such as Fitbit, etc. The goal of the project is to train machine learning algorithms to accurately predict the class of the activity. All covariates in the dataset and all the machine learning techniques are allowed to use and choose the one that has the lowest error rate. 
+
+### Cleansing and Partitioning the data
+
+The first step is to clean the data. A quick glance at the data reveals that there are plenty of covariates that are virtually NA values. So we can dismiss those variables. In order to do that, columns in which more than 90% of data is missing, NA values, are disregarded. 
+
+```{r}
+data <- read.csv("C://users/Abbas/Downloads/pml-training.csv", na.strings = c("", "NA"))
+data <- data[, !colSums(is.na(data)) > 0.9*nrow(data)]
+test_data <- read.csv("C://Users/Abbas/Downloads/pml-testing.csv")
+test_data <- test_data[, !colSums(is.na(test_data)) > 0.9*nrow(test_data)]
+```
+The first seven variables in the data set consists of information such as subject id, time stamp , etc. These variables can be dropped since they are not very useful in training the algorithm. 
+```{r}
+data <- data[,-c(1:7)]
+test_data <- test_data[,-c(1:7)]
+```
+Now, we break the data to two partitions, training (containing 60% of the data) and test data sets(containing 40% of the dataset). 
+
+```{r}
+set.seed(1365)
+
+train_index <- createDataPartition(data$classe, p = 0.6, list = FALSE)
+training <- data[train_index,]
+test <- data[-train_index,]
+```
+Since we would like to fit multiple machine learning algorithm and pick the best performing among them, we will need a cross validation dataset. So we further break test dataset to two equally sized data sets. One for cross validation and one for final testing of the algorithm to approximate the error rate. 
+```{r}
+cv_index <- createDataPartition(test$classe, p = 0.5, list = FALSE)
+cv <- test[cv_index,]
+testing <- test[-cv_index,]
+```
+
+## Transforming Data
+
+Taking a glance of covariates in our data we see that the scale of variables are so different. It is useful to scale the dataset. First we scale the training dataset and then we use the same object to scale the test and cross-validation datasets. Note that we have excluded the outcome from the centering and scaling phase. 
+```{r}
+scale_obj <- preProcess(training[,-53], method = c("center", "scale"))
+training_scale <- predict(scale_obj, training[,-53])
+testing_scale <- predict(scale_obj, testing[,-53])
+cv_scale <- predict(scale_obj, cv[,-53])
+################Attaching the outcome to datasets
+training_scale$classe <- training$classe
+testing_scale$classe <- testing$classe
+cv_scale$classe <- cv$classe
+```
+
+## Predicting with Trees
+
+The first algorithm we consider is tree-based classifier. 
+```{r}
+set.seed(12654)
+fit_rpart <- train(classe ~ ., method = "rpart", data = training_scale,
+                   trControl = trainControl(method = "cv", number = 10))
+#fancyRpartPlot(fit_rpart$finalModel) it gives me an error when implemented in markdown file
+#but it works when i run it in the console.
+```
+Here is the confusion matrix of fitted tree-based classifer. As you can see the accuracy is not very appealing and is around 0.49.
+```{r}
+rpart_train_predict <- predict(fit_rpart, training_scale[,-53])
+confusionMatrix(rpart_train_predict, training_scale$classe)
+```
+We expect a lower or close accuracy for cross-validation dataset:
+```{r}
+rpart_cv_predict <- predict(fit_rpart, cv_scale[,-53])
+confusionMatrix(rpart_cv_predict, cv_scale$classe)
+```
+
+## Bagging 
+
+In this section we try bagging to see if improve the classifier. Since bagging algorithm resamples the data and perform the fit several times and then take the average of the fits to produce the final model, we expect to see improvements in comparison to tree-based classifier. Below you see the accuracy of the bagging classifier for training dataset is almost 100% which is astonishing. But it can be due to overfitting the data and high variance. 
+```{r}
+fit_bag <- train(classe ~ ., data = training_scale, method = "treebag")
+bag_train_predict <- predict(fit_bag, training_scale[,-53])
+confusionMatrix(bag_train_predict, training_scale$classe)
+```
+So we apply the trained model to cross-validation data set. Below you see the results of applying bagging algorithm to cross-validation dataset. It is out-performing the tree-based classfier so well and accuracy is almost 98%. So we can say that the high accuracy is not due to high variance of the model since the model had mnot seen the cross-validation set. 
+```{r}
+bag_cv_predict <- predict(fit_bag, cv_scale[,-53])
+confusionMatrix(bag_cv_predict, cv_scale$classe)
+```
+## Random Forest
+In this section we try random forest algorithm to see if it can beat bagging in performance. Here is the performance of random forests for training data set. Again you see that the accuracy is perfect and 100%. In order to make sure that this high accuracy is not due to overfitting the training dataset, we apply the model to the cross-validation dataset.
+```{r}
+fit_rf <- train(classe ~ ., data = training_scale, method = "rf")
+rf_train_predict <- predict(fit_rf, training_scale[,-53])
+confusionMatrix(rf_train_predict, training_scale$classe)
+```
+Here is the result of applying the model to cross-validation set. It can be noted that random forest has beaten the bagging algorithm and have an accuracy of 99%.
+```{r}
+rf_cv_predict <- predict(fit_rf, cv_scale[,-53])
+confusionMatrix(rf_cv_predict, cv_scale$classe)
+```
+
+# Conclusion
+
+Decision Trees, bagging and Random Forest have been tried to fit the training data in this project. Decision Trees was not particularly helpful and yielded accuracy of less than 50% on cross-validation dataset. Bagging improved that accuracy significantly and yielded cross-validation accuracy of 98% and Random Forests improve that even further to give a accuracy of 99%.   
+Now we apply the Random Forest model to the test dataset that we have set aside from the beginning. 
+```{r}
+rf_test_predict <- predict(fit_rf, testing_scale[,-53])
+confusionMatrix(rf_test_predict, testing_scale$classe)
+```
+you see that test data accuracy approximately is about 99%.
+
+## Predicting the class
+
+Now we apply our classifier to the the data without the label to predict what label each data belongs.
+```{r}
+predict(fit_rf, test_data)
+```
